@@ -127,6 +127,16 @@ git clone https://github.com/zhaotututu/Comfyui_Tutuapi.git
 - Check API balance
 - Ensure correct model selection
 
+### Tutorials & Resources
+
+📺 **Video Tutorials**:
+- **Bilibili**: [@zhaotutu](https://space.bilibili.com/431046154) - Comprehensive tutorials, workflow demonstrations, and model training guides (Chinese)
+- **YouTube**: [@zhaotutu](https://www.youtube.com/@zhaotutu) - Step-by-step guides and use cases
+
+📦 **Workflow Gallery**:
+- Download ready-to-use workflows at [RunningHub](https://www.runninghub.ai/user-center/1936823199386537986/webapp?inviteCode=rh-v0990)
+- Includes various creative examples and advanced techniques
+
 ---
 
 <a id="chinese"></a>
@@ -272,6 +282,16 @@ git clone https://github.com/zhaotututu/Comfyui_Tutuapi.git
 - 确认网络连接正常
 - 检查API余额是否充足
 - 确保选择了正确的模型
+
+### 教程与资源
+
+📺 **视频教程**：
+- **Bilibili**: [@zhaotutu](https://space.bilibili.com/431046154) - 详细的使用教程、工作流演示、模型训练指南等丰富内容
+- **YouTube**: [@zhaotutu](https://www.youtube.com/@zhaotutu) - 英文教程和创意案例分享
+
+📦 **工作流下载**：
+- 在 [RunningHub](https://www.runninghub.ai/user-center/1936823199386537986/webapp?inviteCode=rh-v0990) 下载配套工作流
+- 包含各种创意示例、高级技巧和实战案例
 
 ### 技术特性
 
