@@ -1,0 +1,35 @@
+{
+  "title": "ComfyUI Tutu API for Google Gemini",
+  "author": "zhaotututu",
+  "description": "A ComfyUI custom node for Google Gemini image generation with multiple API providers support (ai.comfly.chat & OpenRouter)",
+  "reference": "https://github.com/zhaotututu/Comfyui_BananaTutuapi",
+  "files": [
+    "https://github.com/zhaotututu/Comfyui_BananaTutuapi"
+  ],
+  "install_type": "git-clone",
+  "pip": [
+    "requests",
+    "aiohttp",
+    "numpy",
+    "pillow",
+    "opencv-python"
+  ],
+  "nodes": [
+    "ComflyGeminiAPI"
+  ],
+  "display_name_mapping": {
+    "ComflyGeminiAPI": "Tutu Nano Banana"
+  },
+  "tags": [
+    "gemini",
+    "google",
+    "ai",
+    "image generation",
+    "api",
+    "comfly",
+    "openrouter"
+  ],
+  "presets": [
+    "gemini"
+  ]
+}
