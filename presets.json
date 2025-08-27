@@ -1,0 +1,84 @@
+{
+  "gemini": [
+    {
+      "id": "photo-portrait",
+      "name": "专业人像摄影",
+      "description": "专业级人像摄影风格",
+      "config": {
+        "prompt_template": "professional portrait photography, {prompt}, studio lighting, high quality, detailed"
+      },
+      "created_time": 1756253600.0,
+      "created_date": "2025-08-27 08:00:00"
+    },
+    {
+      "id": "landscape-photo", 
+      "name": "风景摄影大片",
+      "description": "壮丽的风景摄影风格",
+      "config": {
+        "prompt_template": "landscape photography, {prompt}, golden hour lighting, cinematic, breathtaking view"
+      },
+      "created_time": 1756253600.0,
+      "created_date": "2025-08-27 08:00:00"
+    },
+    {
+      "id": "anime-style",
+      "name": "日系动漫插画", 
+      "description": "日系动漫插画风格",
+      "config": {
+        "prompt_template": "anime style, {prompt}, cel shading, colorful, high quality illustration"
+      },
+      "created_time": 1756253600.0,
+      "created_date": "2025-08-27 08:00:00"
+    },
+    {
+      "id": "realistic-render",
+      "name": "超现实渲染",
+      "description": "超现实主义渲染风格", 
+      "config": {
+        "prompt_template": "photorealistic, {prompt}, ultra detailed, 8k resolution, professional rendering"
+      },
+      "created_time": 1756253600.0,
+      "created_date": "2025-08-27 08:00:00"
+    },
+    {
+      "id": "oil-painting",
+      "name": "油画艺术",
+      "description": "经典油画艺术风格",
+      "config": {
+        "prompt_template": "oil painting, {prompt}, classical art style, masterpiece, detailed brushwork"
+      },
+      "created_time": 1756253600.0,
+      "created_date": "2025-08-27 08:00:00"
+    },
+    {
+      "id": "watercolor",
+      "name": "水彩画",
+      "description": "柔美的水彩画风格",
+      "config": {
+        "prompt_template": "watercolor painting, {prompt}, soft colors, artistic, delicate brushstrokes"
+      },
+      "created_time": 1756253600.0,
+      "created_date": "2025-08-27 08:00:00"
+    },
+    {
+      "id": "cyberpunk",
+      "name": "赛博朋克",
+      "description": "未来科幻赛博朋克风格",
+      "config": {
+        "prompt_template": "cyberpunk style, {prompt}, neon lights, futuristic, high-tech, dystopian"
+      },
+      "created_time": 1756253600.0,
+      "created_date": "2025-08-27 08:00:00"
+    },
+    {
+      "id": "vintage",
+      "name": "复古胶片",
+      "description": "经典复古胶片摄影风格",
+      "config": {
+        "prompt_template": "vintage film photography, {prompt}, retro, film grain, nostalgic atmosphere"
+      },
+      "created_time": 1756253600.0,
+      "created_date": "2025-08-27 08:00:00"
+    }
+  ]
+}
