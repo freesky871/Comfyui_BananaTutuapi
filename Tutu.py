@@ -171,7 +171,7 @@ class ComflyVideoAdapter:
 
 ############################# Gemini ###########################
 
-class ComflyGeminiAPI:
+class TutuGeminiAPI:
     @classmethod
     def INPUT_TYPES(cls):
         # 获取Gemini预设列表
@@ -263,6 +263,7 @@ class ComflyGeminiAPI:
         return headers
 
     def image_to_base64(self, image):
+        """将图片转换为base64，保持原始质量"""
         buffered = BytesIO()
         image.save(buffered, format="PNG")
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
@@ -1024,18 +1025,11 @@ class ComflyGeminiAPI:
                         pil_image = tensor2pil(image_tensor)[0]
                         print(f"[Tutu DEBUG] 处理 {image_var} (标准数组格式)...")
                         
-                        # 优先尝试上传
-                        uploaded_url = self.upload_image(pil_image)
-                        
-                        if uploaded_url:
-                            image_url = uploaded_url
-                            print(f"[Tutu DEBUG] {image_var} 使用上传URL")
-                        else:
-                            # 使用base64
-                            print(f"[Tutu DEBUG] {image_var} 上传失败，使用base64...")
-                            image_base64 = self.image_to_base64(pil_image)
-                            image_url = f"data:image/png;base64,{image_base64}"
-                            print(f"[Tutu DEBUG] {image_var} base64大小: {len(image_base64)} 字符")
+                        # 统一使用base64格式，保持原始质量
+                        print(f"[Tutu DEBUG] {image_var} 使用base64格式...")
+                        image_base64 = self.image_to_base64(pil_image)
+                        image_url = f"data:image/png;base64,{image_base64}"
+                        print(f"[Tutu DEBUG] {image_var} base64大小: {len(image_base64)} 字符")
                         
                         content.append({
                             "type": "image_url", 
@@ -1198,8 +1192,8 @@ class ComflyGeminiAPI:
                                 img_response.raise_for_status()
                                 pil_image = Image.open(BytesIO(img_response.content))
 
-                            resized_image = self.resize_to_target_size(pil_image, target_size)
-                            img_tensor = pil2tensor(resized_image)
+                            # 直接使用生成的原图，不进行尺寸调整以避免白边
+                            img_tensor = pil2tensor(pil_image)
                             images.append(img_tensor)
                             
                         except Exception as img_error:
@@ -1308,9 +1302,9 @@ class ComflyGeminiAPI:
 WEB_DIRECTORY = "./web"    
         
 NODE_CLASS_MAPPINGS = {
-    "ComflyGeminiAPI": ComflyGeminiAPI,
+    "TutuGeminiAPI": TutuGeminiAPI,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "ComflyGeminiAPI": "Tutu Nano Banana",
+    "TutuGeminiAPI": "Tutu Nano Banana",
 }

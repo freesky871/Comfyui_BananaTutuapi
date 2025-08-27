@@ -15,10 +15,10 @@
     "opencv-python"
   ],
   "nodes": [
-    "ComflyGeminiAPI"
+    "TutuGeminiAPI"
   ],
   "display_name_mapping": {
-    "ComflyGeminiAPI": "Tutu Nano Banana"
+    "TutuGeminiAPI": "Tutu Nano Banana"
   },
   "tags": [
     "gemini",
@@ -33,3 +33,4 @@
     "gemini"
   ]
 }
+
