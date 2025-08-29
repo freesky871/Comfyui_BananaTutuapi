@@ -174,13 +174,9 @@ class ComflyVideoAdapter:
 class TutuGeminiAPI:
     @classmethod
     def INPUT_TYPES(cls):
-        # 获取Gemini预设列表
-        preset_names = ["自定义"] + get_preset_names("gemini")
-        
         return {
             "required": {
-                "preset": (preset_names, {"default": "自定义"}),
-                "prompt": ("STRING", {"multiline": True}),
+                "prompt": ("STRING", {"forceInput": True}),
                 "api_provider": (
                     [
                         "ai.comfly.chat",
@@ -196,46 +192,77 @@ class TutuGeminiAPI:
                     ],
                     {"default": "[Comfly] gemini-2.5-flash-image-preview"}
                 ),
-                "resolution": (
-                    [
-                        "512x512",
-                        "768x768",
-                        "1024x1024",
-                        "1280x1280",
-                        "1536x1536",
-                        "2048x2048",
-                        "object_image size",
-                        "subject_image size",
-                        "scene_image size"
-                    ],
-                    {"default": "1024x1024"}
-                ),
+
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 4, "step": 1}),
                 "temperature": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 "top_p": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
                 "timeout": ("INT", {"default": 120, "min": 10, "max": 600, "step": 10}),
             },
             "optional": {
-                "comfly_api_key": ("STRING", {"default": "", "placeholder": "ai.comfly.chat API Key (可选，留空则使用配置文件)"}),
-                "openrouter_api_key": ("STRING", {"default": "", "placeholder": "OpenRouter API Key (可选，留空则使用配置文件)"}),
-                "save_as_preset": ("STRING", {"default": "", "placeholder": "输入预设名称以保存当前配置"}),
-                "object_image": ("IMAGE",),  
-                "subject_image": ("IMAGE",),
-                "scene_image": ("IMAGE",),
+                "comfly_api_key": ("STRING", {
+                    "default": "", 
+                    "placeholder": "ai.comfly.chat API Key (optional, leave blank to use config)"
+                }),
+                "openrouter_api_key": ("STRING", {
+                    "default": "", 
+                    "placeholder": "OpenRouter API Key (optional, leave blank to use config)"
+                }),
+                "input_image_1": ("IMAGE",),  
+                "input_image_2": ("IMAGE",),
+                "input_image_3": ("IMAGE",),
+                "input_image_4": ("IMAGE",),
+                "input_image_5": ("IMAGE",),
             }
         }
     
     RETURN_TYPES = ("IMAGE", "STRING", "STRING")
     RETURN_NAMES = ("generated_images", "response", "image_url")
     FUNCTION = "process"
-    CATEGORY = "Tutu/Gemini"
+    CATEGORY = "Tutu"
 
     def __init__(self):
         config = get_config()
         self.comfly_api_key = config.get('comfly_api_key', config.get('api_key', ''))  # 向后兼容
         self.openrouter_api_key = config.get('openrouter_api_key', '')
         self.timeout = 120
+    
+    def _truncate_base64_in_response(self, text, max_base64_len=100):
+        """截断响应文本中的base64内容以避免刷屏"""
+        import re
+        
+        def replace_base64(match):
+            full_base64 = match.group(0)
+            prefix = full_base64.split(',')[0] + ','  # 保留 data:image/xxx;base64, 部分
+            base64_data = full_base64[len(prefix):]
+            
+            if len(base64_data) > max_base64_len:
+                truncated = base64_data[:max_base64_len] + f"... [truncated {len(base64_data) - max_base64_len} chars]"
+                return prefix + truncated
+            return full_base64
+        
+        # 匹配 data:image/xxx;base64,xxxxxx 格式
+        pattern = r'data:image/[^;]+;base64,[A-Za-z0-9+/=]+'
+        result = re.sub(pattern, replace_base64, text)
+        
+        return result
+    
+    def _sanitize_content_for_debug(self, content):
+        """为调试输出清理内容（移除敏感数据）"""
+        if isinstance(content, str):
+            # 如果内容包含base64图片，截断显示
+            if 'data:image/' in content:
+                parts = content.split('data:image/')
+                if len(parts) > 1:
+                    # 只显示第一部分文本 + base64开头
+                    base64_start = parts[1][:50] + "..." if len(parts[1]) > 50 else parts[1]
+                    return parts[0] + f"data:image/{base64_start}"
+            return content[:200] + "..." if len(content) > 200 else content
+        elif isinstance(content, list):
+            return [self._sanitize_content_for_debug(item) for item in content]
+        elif isinstance(content, dict):
+            return {k: self._sanitize_content_for_debug(v) for k, v in content.items()}
+        else:
+            return content
 
     def get_current_api_key(self, api_provider):
         """根据API提供商获取对应的API key"""
@@ -243,6 +270,49 @@ class TutuGeminiAPI:
             return self.openrouter_api_key
         else:
             return self.comfly_api_key
+            
+    def display_preset_list(self):
+        """显示所有预设的详细信息"""
+        print(f"\n[Tutu] 📋 ======== 预设列表 ========")
+        
+        try:
+            presets = load_presets()
+            gemini_presets = presets.get("gemini", [])
+            
+            if not gemini_presets:
+                print(f"[Tutu] ⚪ 当前没有保存的预设")
+                print(f"[Tutu] 💡 提示：在 'save_as_preset' 中输入名称来保存预设")
+                return
+            
+            print(f"[Tutu] 📊 总共 {len(gemini_presets)} 个预设:")
+            print(f"[Tutu] " + "-" * 50)
+            
+            for i, preset in enumerate(gemini_presets, 1):
+                name = preset.get("name", "未知名称")
+                description = preset.get("description", "无描述")
+                created_date = preset.get("created_date", "未知时间")
+                
+                print(f"[Tutu] {i}. 名称: {name}")
+                print(f"[Tutu]    描述: {description}")
+                print(f"[Tutu]    创建时间: {created_date}")
+                
+                # 显示提示词模板（如果有）
+                config = preset.get("config", {})
+                if "prompt_template" in config:
+                    template = config["prompt_template"]
+                    # 截断长模板以便显示
+                    if len(template) > 100:
+                        template_preview = template[:100] + "..."
+                    else:
+                        template_preview = template
+                    print(f"[Tutu]    模板: {template_preview}")
+                
+                print(f"[Tutu] " + "-" * 30)
+                
+        except Exception as e:
+            print(f"[Tutu] ❌ 获取预设列表时出错: {str(e)}")
+        
+        print(f"[Tutu] 📋 ======== 预设列表结束 ========\n")
 
     def get_headers(self, api_provider="ai.comfly.chat"):
         current_api_key = self.get_current_api_key(api_provider)
@@ -870,25 +940,26 @@ class TutuGeminiAPI:
         else:  # ai.comfly.chat
             return "• [Comfly] gemini-2.5-flash-image-preview (推荐)\n• [Comfly] gemini-2.0-flash-preview-image-generation"
 
-    def process(self, preset, prompt, api_provider, model, resolution, num_images, temperature, top_p, seed, timeout=120, 
-                object_image=None, subject_image=None, scene_image=None, comfly_api_key="", openrouter_api_key="", save_as_preset=""):
+    def process(self, prompt, api_provider, model, num_images, temperature, top_p, timeout=120, 
+                input_image_1=None, input_image_2=None, input_image_3=None, input_image_4=None, input_image_5=None, 
+                comfly_api_key="", openrouter_api_key=""):
 
         print(f"\n[Tutu DEBUG] ========== Starting Gemini API Process ==========")
-        print(f"[Tutu DEBUG] Original parameters:")
+        print(f"[Tutu DEBUG] Parameters:")
         print(f"[Tutu DEBUG] - API Provider: {api_provider}")
-        print(f"[Tutu DEBUG] - Preset: {preset}")
         print(f"[Tutu DEBUG] - Model: {model}")
-        print(f"[Tutu DEBUG] - Resolution: {resolution}")
         print(f"[Tutu DEBUG] - Prompt length: {len(prompt) if prompt else 0}")
-        print(f"[Tutu DEBUG] - Has object_image: {object_image is not None}")
-        print(f"[Tutu DEBUG] - Has subject_image: {subject_image is not None}")
-        print(f"[Tutu DEBUG] - Has scene_image: {scene_image is not None}")
+        print(f"[Tutu DEBUG] - Has input_image_1: {input_image_1 is not None}")
+        print(f"[Tutu DEBUG] - Has input_image_2: {input_image_2 is not None}")
+        print(f"[Tutu DEBUG] - Has input_image_3: {input_image_3 is not None}")
+        print(f"[Tutu DEBUG] - Has input_image_4: {input_image_4 is not None}")
+        print(f"[Tutu DEBUG] - Has input_image_5: {input_image_5 is not None}")
         
-        # 显示模型选择指南
-        print(f"\n[Tutu INFO] 💡 模型选择指南:")
-        print(f"[Tutu INFO] • ai.comfly.chat 请选择 [Comfly] 标签的模型")
-        print(f"[Tutu INFO] • OpenRouter 请选择 [OpenRouter] 标签的模型")
-        print(f"[Tutu INFO] • 当前组合: {api_provider} + {model}")
+        # Display model selection guide
+        print(f"\n[Tutu INFO] 💡 Model Selection Guide:")
+        print(f"[Tutu INFO] • For ai.comfly.chat: Select [Comfly] tagged models")
+        print(f"[Tutu INFO] • For OpenRouter: Select [OpenRouter] tagged models")
+        print(f"[Tutu INFO] • Current combination: {api_provider} + {model}")
         
         # 根据API提供商设置端点
         if api_provider == "OpenRouter":
@@ -904,60 +975,13 @@ class TutuGeminiAPI:
             suggestions = self._get_model_suggestions(api_provider)
             error_msg = f"❌ 模型选择错误！\n\n当前选择: '{model}'\nAPI提供商: '{api_provider}'\n\n💡 建议选择:\n{suggestions}\n\n请重新选择正确的模型。"
             print(f"[Tutu ERROR] {error_msg}")
-            return self.handle_error(object_image, subject_image, scene_image, error_msg, resolution)
+            return self.handle_error(input_image_1, input_image_2, input_image_3, input_image_4, input_image_5, error_msg)
         
         model = actual_model
         print(f"[Tutu DEBUG] Using actual model: {model}")
 
-        # 保存原始提示词用于后续处理
+        # Save original prompt for processing
         original_prompt = prompt
-        prompt_template_used = None
-
-        # 处理预设加载
-        if preset != "自定义":
-            print(f"[Tutu DEBUG] Loading preset: {preset}")
-            preset_data = get_preset_by_name("gemini", preset)
-            if preset_data and preset_data.get("config"):
-                preset_config = preset_data["config"]
-                print(f"[Tutu DEBUG] 简化预设加载: 仅应用提示词模板")
-                
-                # 预设系统简化：只应用提示词模板，所有其他参数保持用户界面选择
-                # 如果预设中有提示词模板，应用它
-                if "prompt_template" in preset_config and preset_config["prompt_template"]:
-                    prompt_template_used = preset_config["prompt_template"]
-                    prompt = preset_config["prompt_template"].replace("{prompt}", original_prompt)
-                    print(f"[Tutu DEBUG] ✅ 应用提示词模板:")
-                    print(f"[Tutu DEBUG] - 原始提示词: {original_prompt}")
-                    print(f"[Tutu DEBUG] - 模板: {prompt_template_used}")
-                    print(f"[Tutu DEBUG] - 增强后: {prompt}")
-                    print(f"[Tutu DEBUG] ✅ 保持用户界面的所有其他设置 (模型、分辨率、温度等)")
-                else:
-                    print(f"[Tutu DEBUG] ⚠️ 预设中没有提示词模板")
-            else:
-                print(f"[Tutu DEBUG] No preset config found for: {preset}")
-        
-        # 保存为新预设（如果指定了名称）
-        if save_as_preset.strip():
-            # 简化预设：只保存提示词模板和描述
-            if prompt_template_used:
-                # 如果使用了模板，保存模板
-                current_config = {
-                    "prompt_template": prompt_template_used
-                }
-                description = f"提示词模板: {prompt_template_used[:50]}..." if len(prompt_template_used) > 50 else f"提示词模板: {prompt_template_used}"
-            else:
-                # 如果没有模板，保存当前提示词作为模板
-                current_config = {
-                    "prompt_template": original_prompt  # 保存原始提示词
-                }
-                description = f"提示词模板: {original_prompt[:50]}..." if len(original_prompt) > 50 else f"提示词模板: {original_prompt}"
-            
-            try:
-                preset_id = save_preset("gemini", save_as_preset, current_config, description)
-                print(f"[Tutu] ✅ 成功保存简化预设 '{save_as_preset}' (ID: {preset_id})")
-                print(f"[Tutu] 📝 预设内容: 仅包含提示词模板，所有其他设置由界面控制")
-            except Exception as e:
-                print(f"[Tutu] ❌ 保存预设失败: {str(e)}")
         
         # 处理API Key更新和保存
         config_changed = False
@@ -989,7 +1013,6 @@ class TutuGeminiAPI:
         
         print(f"[Tutu DEBUG] Final parameters:")
         print(f"[Tutu DEBUG] - Model: {model}")
-        print(f"[Tutu DEBUG] - Resolution: {resolution}")
         print(f"[Tutu DEBUG] - Temperature: {temperature}")
         print(f"[Tutu DEBUG] - API Key length: {len(current_api_key) if current_api_key else 0}")
         
@@ -997,33 +1020,28 @@ class TutuGeminiAPI:
 
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
-            target_size = None
+            # Gemini模型自动处理尺寸，无需手动指定
 
-            if resolution == "object_image size" and object_image is not None:
-                pil_image = tensor2pil(object_image)[0]
-                target_size = pil_image.size
-            elif resolution == "subject_image size" and subject_image is not None:
-                pil_image = tensor2pil(subject_image)[0]
-                target_size = pil_image.size
-            elif resolution == "scene_image size" and scene_image is not None:
-                pil_image = tensor2pil(scene_image)[0]
-                target_size = pil_image.size
-            else:
-                target_size = self.parse_resolution(resolution)
-
-            has_images = object_image is not None or subject_image is not None or scene_image is not None
+            has_images = any([input_image_1 is not None, input_image_2 is not None, input_image_3 is not None, 
+                           input_image_4 is not None, input_image_5 is not None])
 
             # 使用标准OpenAI格式（数组）- 适用于所有API提供商
             content = []
             
             if has_images:
                 # 对于图片编辑任务，先添加图片，再添加指令文本
-                for image_var, image_tensor in [("object_image", object_image), 
-                                             ("subject_image", subject_image), 
-                                             ("scene_image", scene_image)]:
+                image_inputs = [
+                    ("input_image_1", input_image_1, "图片1"),
+                    ("input_image_2", input_image_2, "图片2"),
+                    ("input_image_3", input_image_3, "图片3"),
+                    ("input_image_4", input_image_4, "图片4"),
+                    ("input_image_5", input_image_5, "图片5")
+                ]
+                
+                for image_var, image_tensor, image_label in image_inputs:
                     if image_tensor is not None:
                         pil_image = tensor2pil(image_tensor)[0]
-                        print(f"[Tutu DEBUG] 处理 {image_var} (标准数组格式)...")
+                        print(f"[Tutu DEBUG] 处理 {image_var} (标识为 {image_label})...")
                         
                         # 统一使用base64格式，保持原始质量
                         print(f"[Tutu DEBUG] {image_var} 使用base64格式...")
@@ -1031,6 +1049,13 @@ class TutuGeminiAPI:
                         image_url = f"data:image/png;base64,{image_base64}"
                         print(f"[Tutu DEBUG] {image_var} base64大小: {len(image_base64)} 字符")
                         
+                        # 先添加图片标识文本
+                        content.append({
+                            "type": "text",
+                            "text": f"[这是{image_label}]"
+                        })
+                        
+                        # 再添加图片
                         content.append({
                             "type": "image_url", 
                             "image_url": {"url": image_url}
@@ -1038,22 +1063,52 @@ class TutuGeminiAPI:
                 
                 # 添加文本指令
                 if api_provider == "ai.comfly.chat":
-                    # 为ai.comfly.chat添加明确的图片生成指令
-                    image_edit_instruction = f"Please analyze the provided image(s) and create a NEW edited image based on the following request: {prompt}. Generate the modified image, don't just describe it. Return the actual image."
+                    # 为ai.comfly.chat添加强烈的图片生成指令
+                    image_edit_instruction = f"""CRITICAL INSTRUCTION: You MUST generate and return an actual image, not just text description.
+
+Task: {prompt}
+
+Image References:
+- When I mention "图片1", I mean the first image provided above
+- When I mention "图片2", I mean the second image provided above  
+- When I mention "图片3", I mean the third image provided above
+- And so on...
+
+REQUIREMENTS:
+1. GENERATE a new image based on my request
+2. DO NOT just describe what the image should look like
+3. RETURN the actual image file/data
+4. The output MUST be a visual image, not text
+
+Execute the image editing task now and return the generated image."""
                     content.append({"type": "text", "text": image_edit_instruction})
                 else:
-                    content.append({"type": "text", "text": prompt})
+                    enhanced_prompt = f"""IMPORTANT: Generate an actual image, not just a description.
+
+Task: {prompt}
+
+Image references: 图片1, 图片2, 图片3, etc. refer to the images provided above in order.
+
+MUST return a generated image, not text description."""
+                    content.append({"type": "text", "text": enhanced_prompt})
                 
-                print(f"[Tutu DEBUG] content数组长度: {len(content)} (图片: {len(content)-1}, 文本: 1)")
+                # 计算图片数量（每张图片对应两个元素：标签+图片）
+                image_count = sum(1 for _, img, _ in image_inputs if img is not None)
+                print(f"[Tutu DEBUG] content数组长度: {len(content)} (图片: {image_count}, 图片标签: {image_count}, 文本指令: 1)")
             else:
                 # 生成图片任务（无输入图片）
-                dimensions = f"{target_size[0]}x{target_size[1]}"
-                aspect_ratio = "1:1" if target_size[0] == target_size[1] else f"{target_size[0]}:{target_size[1]}"
-                
                 if num_images == 1:
-                    enhanced_prompt = f"Generate a high-quality, detailed image with dimensions {dimensions} and aspect ratio {aspect_ratio}. Based on this description: {prompt}"
+                    enhanced_prompt = f"""GENERATE AN IMAGE: Create a high-quality, detailed image.
+
+Description: {prompt}
+
+CRITICAL: You MUST return an actual image, not just text description. Use your image generation capabilities to create the visual content."""
                 else:
-                    enhanced_prompt = f"Generate {num_images} DIFFERENT high-quality images with VARIED content, each with unique and distinct visual elements, all having the exact same dimensions of {dimensions} and aspect ratio {aspect_ratio}. Important: make sure each image has different content but maintains the same technical dimensions. Based on this description: {prompt}"
+                    enhanced_prompt = f"""GENERATE {num_images} DIFFERENT IMAGES: Create {num_images} unique, high-quality images with VARIED content, each with distinct visual elements.
+
+Description: {prompt}
+
+CRITICAL: You MUST return actual {num_images} images, not text descriptions. Each image must be visually different."""
                 
                 content.append({"type": "text", "text": enhanced_prompt})
 
@@ -1067,7 +1122,6 @@ class TutuGeminiAPI:
                 "messages": messages,
                 "temperature": temperature,
                 "top_p": top_p,
-                "seed": seed if seed > 0 else None,
                 "max_tokens": 8192,
                 "stream": True  # Required for gemini-2.5-flash-image-preview
             }
@@ -1077,7 +1131,6 @@ class TutuGeminiAPI:
             print(f"[Tutu DEBUG] API Provider: {api_provider}")
             print(f"[Tutu DEBUG] Model: {model}")
             print(f"[Tutu DEBUG] Has images: {has_images}")
-            print(f"[Tutu DEBUG] Target size: {target_size}")
             print(f"[Tutu DEBUG] Messages count: {len(messages)}")
             print(f"[Tutu DEBUG] Content type: {type(content)}")
             print(f"[Tutu DEBUG] Content length: {len(str(content))}")
@@ -1094,6 +1147,7 @@ class TutuGeminiAPI:
             # 检查API Key
             headers = self.get_headers(api_provider)
             print(f"[Tutu DEBUG] Headers: {dict(headers)}")
+
             if not current_api_key or len(current_api_key) < 10:
                 print(f"[Tutu DEBUG] WARNING: API Key seems invalid: '{current_api_key[:10] if current_api_key else 'None'}...")
 
@@ -1163,7 +1217,9 @@ class TutuGeminiAPI:
             
             pbar.update_absolute(40)
 
-            formatted_response = f"**User prompt**: {prompt}\n\n**Response** ({timestamp}):\n{response_text}"
+            # 简化base64内容以避免刷屏
+            truncated_response = self._truncate_base64_in_response(response_text, max_base64_len=100)
+            formatted_response = f"**User prompt**: {prompt}\n\n**Response** ({timestamp}):\n{truncated_response}"
             
             print(f"[Tutu DEBUG] 准备提取图片URL，响应文本长度: {len(response_text)}")
             image_urls = self.extract_image_urls(response_text)
@@ -1233,12 +1289,10 @@ class TutuGeminiAPI:
             pbar.update_absolute(100)
 
             reference_image = None
-            if object_image is not None:
-                reference_image = object_image
-            elif subject_image is not None:
-                reference_image = subject_image
-            elif scene_image is not None:
-                reference_image = scene_image
+            for img in [input_image_1, input_image_2, input_image_3, input_image_4, input_image_5]:
+                if img is not None:
+                    reference_image = img
+                    break
                 
             # 添加调试说明到响应中
             debug_info = f"""
@@ -1256,14 +1310,14 @@ class TutuGeminiAPI:
             if reference_image is not None:
                 return (reference_image, formatted_response, "")
             else:
-                default_image = Image.new('RGB', target_size, color='white')
+                default_image = Image.new('RGB', (1024, 1024), color='white')
                 default_tensor = pil2tensor(default_image)
                 return (default_tensor, formatted_response, "")
             
         except TimeoutError as e:
             error_message = f"API timeout error: {str(e)}"
             print(f"[Tutu DEBUG] TimeoutError occurred: {error_message}")
-            return self.handle_error(object_image, subject_image, scene_image, error_message, resolution)
+            return self.handle_error(input_image_1, input_image_2, input_image_3, input_image_4, input_image_5, error_message)
             
         except Exception as e:
             error_message = f"Error calling Gemini API: {str(e)}"
@@ -1278,25 +1332,19 @@ class TutuGeminiAPI:
             print(f"[Tutu DEBUG] - API key present: {bool(current_api_key)}")
             print(f"[Tutu DEBUG] - API key length: {len(current_api_key) if current_api_key else 0}")
             
-            return self.handle_error(object_image, subject_image, scene_image, error_message, resolution)
+            return self.handle_error(input_image_1, input_image_2, input_image_3, input_image_4, input_image_5, error_message)
     
-    def handle_error(self, object_image, subject_image, scene_image, error_message, resolution="1024x1024"):
+    def handle_error(self, input_image_1, input_image_2, input_image_3, input_image_4, input_image_5, error_message):
         """Handle errors with appropriate image output"""
-        if object_image is not None:
-            return (object_image, error_message, "")
-        elif subject_image is not None:
-            return (subject_image, error_message, "")
-        elif scene_image is not None:
-            return (scene_image, error_message, "")
-        else:
-            if resolution in ["object_image size", "subject_image size", "scene_image size"]:
-                target_size = (1024, 1024)  
-            else:
-                target_size = self.parse_resolution(resolution)
-                
-            default_image = Image.new('RGB', target_size, color='white')
-            default_tensor = pil2tensor(default_image)
-            return (default_tensor, error_message, "")
+        # 按优先级返回第一个可用的图片
+        for img in [input_image_1, input_image_2, input_image_3, input_image_4, input_image_5]:
+            if img is not None:
+                return (img, error_message, "")
+        
+        # 如果没有输入图片，创建默认图片 (1024x1024)
+        default_image = Image.new('RGB', (1024, 1024), color='white')
+        default_tensor = pil2tensor(default_image)
+        return (default_tensor, error_message, "")
 
 
 WEB_DIRECTORY = "./web"    
@@ -1306,5 +1354,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "TutuGeminiAPI": "Tutu Nano Banana",
+    "TutuGeminiAPI": "🚀 Tutu Nano Banana",
 }
