@@ -188,7 +188,8 @@ class TutuGeminiAPI:
                     [
                         "[Comfly] gemini-2.5-flash-image-preview",
                         "[Comfly] gemini-2.0-flash-preview-image-generation", 
-                        "[OpenRouter] google/gemini-2.5-flash-image-preview"
+                        "[OpenRouter] google/gemini-2.5-flash-image-preview",
+                        "[OpenRouter] google/gemini-2.5-flash-image-preview:free"
                     ],
                     {"default": "[Comfly] gemini-2.5-flash-image-preview"}
                 ),
